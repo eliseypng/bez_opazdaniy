@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#121215" />
+  <title>Огонёк без опозданий</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #2a1810 0%, #121215 55%, #09090b 100%);
+      min-height: 100vh;
+      color: #fafafa;
+    }
+
+    @keyframes flameFlicker {
+      0%, 100% {
+        transform: scale(1) rotate(-1deg);
+        filter: drop-shadow(0 0 18px rgba(249, 115, 22, 0.55));
+      }
+      50% {
+        transform: scale(1.04, 1.07) rotate(1.5deg);
+        filter: drop-shadow(0 0 28px rgba(251, 191, 36, 0.75));
+      }
+    }
+
+    @keyframes flameIdle {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.72;
+      }
+      50% {
+        transform: scale(1.02);
+        opacity: 0.85;
+      }
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      65% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .flame-active {
+      animation: flameFlicker 2.2s ease-in-out infinite;
+      transform-origin: center bottom;
+    }
+
+    .flame-dim {
+      animation: flameIdle 3s ease-in-out infinite;
+      transform-origin: center bottom;
+      filter: grayscale(0.65) drop-shadow(0 0 8px rgba(249, 115, 22, 0.2));
+    }
+
+    .flame-extinguished {
+      filter: grayscale(1) opacity(0.35);
+      transform-origin: center bottom;
+    }
+
+    .pop-in {
+      animation: popIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .widget-glass {
+      background: linear-gradient(165deg, rgba(39, 39, 42, 0.82) 0%, rgba(24, 24, 27, 0.94) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .spark-particle {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+      pointer-events: none;
+      animation: sparkFly 0.8s ease-out forwards;
+    }
+
+    @keyframes sparkFly {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) scale(0);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 sm:p-6">
+
+  <!-- Main Mobile Widget Container -->
+  <main class="w-full max-w-[380px] mx-auto">
+    <div id="widgetCard" class="widget-glass rounded-[32px] p-6 relative overflow-hidden">
+
+      <!-- Subtle ambient glow -->
+      <div id="ambientGlow" class="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-orange-500/15 blur-3xl transition-all duration-700"></div>
+
+      <!-- Top Bar -->
+      <header class="relative z-10 flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-2.5 w-2.5 rounded-full bg-orange-400" id="statusDot"></span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400" id="goalBadge">До 09:00</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="soundToggleBtn" type="button" title="Звук" aria-label="Переключить звук" class="w-9 h-9 rounded-full bg-zinc-800/80 hover:bg-zinc-700/80 flex items-center justify-center text-zinc-300 transition">
+            <svg id="soundOnIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07" />
+            </svg>
+            <svg id="soundOffIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6M17 9l6 6" />
+            </svg>
+          </button>
+          <button id="installHelpBtn" type="button" title="Как добавить на экран" aria-label="Как добавить на экран телефона" class="w-9 h-9 rounded-full bg-zinc-800/80 hover:bg-zinc-700/80 flex items-center justify-center text-zinc-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <button id="settingsBtn" type="button" title="Настройки" aria-label="Настройки виджета" class="w-9 h-9 rounded-full bg-zinc-800/80 hover:bg-zinc-700/80 flex items-center justify-center text-zinc-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Flame & Streak Counter -->
+      <section class="relative z-10 flex flex-col items-center text-center my-2">
+        <div id="flameWrapper" class="relative w-32 h-32 flex items-center justify-center mb-2">
+          <!-- Custom SVG Flame -->
+          <svg id="flameSvg" viewBox="0 0 120 120" class="w-28 h-28 flame-dim transition-all duration-500">
+            <defs>
+              <linearGradient id="outerFlame" x1="0%" y1="100%" x2="0%" y2="0%">
+                <stop offset="0%" stop-color="#ea580c" />
+                <stop offset="55%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#fbbf24" />
+              </linearGradient>
+              <linearGradient id="innerFlame" x1="0%" y1="100%" x2="0%" y2="0%">
+                <stop offset="0%" stop-color="#f59e0b" />
+                <stop offset="100%" stop-color="#fef08a" />
+              </linearGradient>
+            </defs>
+            <path d="M60 12 C60 12 94 42 94 74 C94 94.5 78.8 108 60 108 C41.2 108 26 94.5 26 74 C26 57 36 44 43 37 C43 37 42 50 50 54 C46 39 54 22 60 12 Z" fill="url(#outerFlame)" />
+            <path d="M60 44 C60 44 77 61 77 79 C77 90.6 69.4 99 60 99 C50.6 99 43 90.6 43 79 C43 70 48 62 52 58 C52 58 53 65 57 67 C55 58 57 50 60 44 Z" fill="url(#innerFlame)" />
+          </svg>
+        </div>
+
+        <div class="flex items-baseline gap-2">
+          <span id="streakCount" class="text-6xl font-extrabold tracking-tight text-white tabular-nums">0</span>
+          <span id="streakUnit" class="text-lg font-semibold text-zinc-400">дней</span>
+        </div>
+        <h1 class="text-base font-semibold text-zinc-200 mt-1">Огонёк без опозданий</h1>
+        <p id="statusMessage" class="text-xs text-zinc-400 mt-1 min-h-[18px]">Отметьтесь сегодня, чтобы зажечь огонёк</p>
+      </section>
+
+      <!-- Level & Best Streak Pills -->
+      <section class="relative z-10 grid grid-cols-2 gap-2.5 my-5">
+        <div class="rounded-2xl bg-zinc-900/75 border border-zinc-800/80 px-3.5 py-2.5 flex flex-col">
+          <span class="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">Уровень</span>
+          <span id="levelLabel" class="text-sm font-semibold text-orange-300 mt-0.5">Искра</span>
+        </div>
+        <div class="rounded-2xl bg-zinc-900/75 border border-zinc-800/80 px-3.5 py-2.5 flex flex-col">
+          <span class="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">Рекорд</span>
+          <span id="bestStreakLabel" class="text-sm font-semibold text-zinc-200 mt-0.5">0 дней</span>
+        </div>
+      </section>
+
+      <!-- 7-Day Week Strip -->
+      <section class="relative z-10 mb-5">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-zinc-400">Эта неделя</span>
+          <span id="todayDateLabel" class="text-xs text-zinc-500"></span>
+        </div>
+        <div id="weekStrip" class="grid grid-cols-7 gap-1.5">
+          <!-- Rendered by JS -->
+        </div>
+      </section>
+
+      <!-- Primary Action Buttons -->
+      <section class="relative z-10 flex flex-col gap-2.5">
+        <button id="extendBtn" type="button" class="w-full py-3.5 px-4 rounded-2xl font-semibold text-sm text-zinc-950 bg-gradient-to-r from-amber-400 via-orange-400 to-orange-500 hover:brightness-105 active:scale-[0.98] transition shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2">
+          <span>🔥</span>
+          <span id="extendBtnText">Не опоздал(а) — продлить огонёк</span>
+        </button>
+
+        <button id="lateBtn" type="button" class="w-full py-2.5 px-4 rounded-2xl font-medium text-xs text-zinc-400 bg-zinc-900/70 hover:bg-zinc-800/80 hover:text-zinc-200 border border-zinc-800/80 active:scale-[0.98] transition">
+          Сегодня опоздал(а)…
+        </button>
+      </section>
+
+    </div>
+
+    <!-- Storage Status Pill & Footer Note -->
+    <div class="mt-3 px-2 flex flex-col items-center gap-1.5">
+      <button id="storageStatusBadge" type="button" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-400 hover:text-zinc-200 transition">
+        <span id="storageStatusDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        <span id="storageStatusText">Проверка сохранения…</span>
+      </button>
+      <p class="text-center text-[11px] text-zinc-500 leading-snug">
+        Нажмите на значок телефона сверху, чтобы закрепить виджет на главный экран.
+      </p>
+    </div>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-100 shadow-xl opacity-0 pointer-events-none transition-all duration-300 translate-y-2">
+    Сохранено
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="widget-glass rounded-3xl w-full max-w-[360px] p-5 pop-in my-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold text-white">Настройки огонька</h2>
+        <button id="closeSettingsBtn" type="button" class="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label for="goalTimeInput" class="block text-xs font-medium text-zinc-400 mb-1.5">Приходить не позже</label>
+          <input id="goalTimeInput" type="time" value="09:00" class="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-400" />
+        </div>
+
+        <!-- Backup Code -->
+        <div class="pt-3 border-t border-zinc-800">
+          <p class="text-xs font-medium text-zinc-400 mb-2">Резервный код переноса</p>
+          <div class="flex gap-2 mb-2">
+            <button id="copyBackupBtn" type="button" class="flex-1 py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition">
+              Скопировать код
+            </button>
+            <button id="toggleRestoreBtn" type="button" class="flex-1 py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition">
+              Вставить код
+            </button>
+          </div>
+          <div id="restoreBox" class="hidden space-y-2">
+            <input id="restoreInput" type="text" placeholder="Вставьте сохранённый код сюда" class="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-400" />
+            <button id="applyRestoreBtn" type="button" class="w-full py-2 rounded-xl bg-orange-500/90 hover:bg-orange-500 text-xs font-semibold text-zinc-950 transition">
+              Восстановить серию
+            </button>
+          </div>
+        </div>
+
+        <!-- Testing & Reset -->
+        <div class="pt-3 border-t border-zinc-800">
+          <p class="text-[11px] text-zinc-500 mb-2">Проверка работы виджета</p>
+          <button id="simulateNextDayBtn" type="button" class="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-orange-300 transition mb-2">
+            ⏩ Проверить следующий день (+1 день)
+          </button>
+          <button id="resetAllBtn" type="button" class="w-full py-2 px-3 rounded-xl bg-red-950/50 hover:bg-red-900/60 border border-red-900/50 text-xs font-medium text-red-300 transition">
+            Сбросить всю статистику
+          </button>
+        </div>
+      </div>
+
+      <button id="saveSettingsBtn" type="button" class="mt-5 w-full py-3 rounded-2xl bg-orange-500 hover:bg-orange-400 text-zinc-950 font-semibold text-sm transition">
+        Готово
+      </button>
+    </div>
+  </div>
+
+  <!-- Confirm Late Modal -->
+  <div id="lateModal" class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="widget-glass rounded-3xl w-full max-w-[330px] p-5 pop-in text-center">
+      <div class="text-3xl mb-2">💨</div>
+      <h2 class="text-base font-bold text-white mb-1">Потушить огонёк?</h2>
+      <p class="text-xs text-zinc-400 mb-5">Если вы сегодня опоздали, текущая серия сбросится до 0, но ваш лучший рекорд сохранится.</p>
+      <div class="flex gap-2.5">
+        <button id="cancelLateBtn" type="button" class="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition">
+          Отмена
+        </button>
+        <button id="confirmLateBtn" type="button" class="flex-1 py-2.5 rounded-xl bg-red-500/90 hover:bg-red-500 text-xs font-semibold text-white transition">
+          Да, опоздал(а)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Install on Phone Help Modal -->
+  <div id="installModal" class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="widget-glass rounded-3xl w-full max-w-[340px] p-5 pop-in">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold text-white">На главный экран телефона</h2>
+        <button id="closeInstallBtn" type="button" class="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition">✕</button>
+      </div>
+      <div class="space-y-3 text-xs text-zinc-300 leading-relaxed">
+        <div class="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+          <p class="font-semibold text-orange-300 mb-1">iPhone (Safari)</p>
+          <p>Откройте страницу в Safari, нажмите <strong>«Поделиться»</strong> (квадрат со стрелкой вверх) и выберите <strong>«На экран „Домой“»</strong>.</p>
+        </div>
+        <div class="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+          <p class="font-semibold text-orange-300 mb-1">Android (Chrome)</p>
+          <p>Откройте страницу в Chrome, нажмите меню <strong>⋮</strong> в правом верхнем углу и выберите <strong>«Добавить на гл. экран»</strong>.</p>
+        </div>
+      </div>
+      <button id="okInstallBtn" type="button" class="mt-4 w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white transition">
+        Понятно
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'ontime_flame_widget_v1';
+      const COOKIE_NAME = 'ontime_flame_v1';
+      const IDB_NAME = 'ontime_flame_db';
+      const IDB_STORE = 'state_store';
+
+      const defaultState = {
+        streak: 0,
+        bestStreak: 0,
+        lastCheckInDate: null,
+        goalTime: '09:00',
+        soundEnabled: true,
+        history: {},
+        dayOffset: 0,
+        updatedAt: 0
+      };
+
+      const storageCaps = {
+        localStorage: false,
+        cookie: false,
+        indexedDB: false
+      };
+
+      function testLocalStorage() {
+        try {
+          const testKey = '__flame_test__';
+          localStorage.setItem(testKey, '1');
+          const ok = localStorage.getItem(testKey) === '1';
+          localStorage.removeItem(testKey);
+          return ok;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function readCookie() {
+        try {
+          const parts = document.cookie.split('; ');
+          for (const part of parts) {
+            if (part.startsWith(COOKIE_NAME + '=')) {
+              const val = decodeURIComponent(part.slice(COOKIE_NAME.length + 1));
+              return JSON.parse(val);
+            }
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
+      function writeCookie(obj) {
+        try {
+          const val = encodeURIComponent(JSON.stringify(obj));
+          const isHttps = location.protocol === 'https:';
+          const sameSite = isHttps ? 'SameSite=None; Secure' : 'SameSite=Lax';
+          document.cookie = `${COOKIE_NAME}=${val}; max-age=31536000; path=/; ${sameSite}`;
+          const check = readCookie();
+          storageCaps.cookie = Boolean(check && check.updatedAt === obj.updatedAt);
+        } catch (e) {
+          storageCaps.cookie = false;
+        }
+      }
+
+      function readWindowName() {
+        try {
+          if (window.name && window.name.startsWith('FLAME_STATE:')) {
+            return JSON.parse(window.name.slice('FLAME_STATE:'.length));
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
+      function writeWindowName(obj) {
+        try {
+          window.name = 'FLAME_STATE:' + JSON.stringify(obj);
+        } catch (e) { /* ignore */ }
+      }
+
+      function openIdb() {
+        return new Promise((resolve, reject) => {
+          try {
+            if (!window.indexedDB) return reject(new Error('No IDB'));
+            const req = indexedDB.open(IDB_NAME, 1);
+            req.onupgradeneeded = () => {
+              const db = req.result;
+              if (!db.objectStoreNames.contains(IDB_STORE)) {
+                db.createObjectStore(IDB_STORE);
+              }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+
+      async function readIdb() {
+        try {
+          const db = await openIdb();
+          return await new Promise((resolve) => {
+            const tx = db.transaction(IDB_STORE, 'readonly');
+            const store = tx.objectStore(IDB_STORE);
+            const req = store.get('main');
+            req.onsuccess = () => {
+              storageCaps.indexedDB = true;
+              resolve(req.result || null);
+            };
+            req.onerror = () => resolve(null);
+          });
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function writeIdb(obj) {
+        try {
+          const db = await openIdb();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            const store = tx.objectStore(IDB_STORE);
+            const req = store.put(obj, 'main');
+            req.onsuccess = () => {
+              storageCaps.indexedDB = true;
+              resolve();
+            };
+            req.onerror = () => reject(req.error);
+          });
+        } catch (e) {
+          storageCaps.indexedDB = false;
+        }
+      }
+
+      function normalizeState(parsed) {
+        if (!parsed || typeof parsed !== 'object') return { ...defaultState };
+        return {
+          ...defaultState,
+          ...parsed,
+          history: parsed.history && typeof parsed.history === 'object' ? parsed.history : {}
+        };
+      }
+
+      function loadSyncState() {
+        storageCaps.localStorage = testLocalStorage();
+        const candidates = [];
+
+        if (storageCaps.localStorage) {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) candidates.push(JSON.parse(raw));
+          } catch (e) { /* ignore */ }
+        }
+
+        const fromCookie = readCookie();
+        if (fromCookie) {
+          storageCaps.cookie = true;
+          candidates.push(fromCookie);
+        }
+
+        const fromWin = readWindowName();
+        if (fromWin) candidates.push(fromWin);
+
+        if (candidates.length === 0) {
+          return { ...defaultState };
+        }
+
+        candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        return normalizeState(candidates[0]);
+      }
+
+      let state = loadSyncState();
+
+      function saveState() {
+        state.updatedAt = Date.now();
+
+        if (testLocalStorage()) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            storageCaps.localStorage = true;
+          } catch (e) {
+            storageCaps.localStorage = false;
+          }
+        } else {
+          storageCaps.localStorage = false;
+        }
+
+        writeCookie(state);
+        writeWindowName(state);
+        writeIdb(state).then(() => updateStorageBadge());
+        updateStorageBadge();
+      }
+
+      // DOM elements
+      const ambientGlow = document.getElementById('ambientGlow');
+      const statusDot = document.getElementById('statusDot');
+      const goalBadge = document.getElementById('goalBadge');
+      const flameWrapper = document.getElementById('flameWrapper');
+      const flameSvg = document.getElementById('flameSvg');
+      const streakCount = document.getElementById('streakCount');
+      const streakUnit = document.getElementById('streakUnit');
+      const statusMessage = document.getElementById('statusMessage');
+      const levelLabel = document.getElementById('levelLabel');
+      const bestStreakLabel = document.getElementById('bestStreakLabel');
+      const todayDateLabel = document.getElementById('todayDateLabel');
+      const weekStrip = document.getElementById('weekStrip');
+      const extendBtn = document.getElementById('extendBtn');
+      const extendBtnText = document.getElementById('extendBtnText');
+      const lateBtn = document.getElementById('lateBtn');
+
+      const storageStatusBadge = document.getElementById('storageStatusBadge');
+      const storageStatusDot = document.getElementById('storageStatusDot');
+      const storageStatusText = document.getElementById('storageStatusText');
+
+      const soundToggleBtn = document.getElementById('soundToggleBtn');
+      const soundOnIcon = document.getElementById('soundOnIcon');
+      const soundOffIcon = document.getElementById('soundOffIcon');
+
+      const settingsBtn = document.getElementById('settingsBtn');
+      const settingsModal = document.getElementById('settingsModal');
+      const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+      const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+      const goalTimeInput = document.getElementById('goalTimeInput');
+      const copyBackupBtn = document.getElementById('copyBackupBtn');
+      const toggleRestoreBtn = document.getElementById('toggleRestoreBtn');
+      const restoreBox = document.getElementById('restoreBox');
+      const restoreInput = document.getElementById('restoreInput');
+      const applyRestoreBtn = document.getElementById('applyRestoreBtn');
+      const simulateNextDayBtn = document.getElementById('simulateNextDayBtn');
+      const resetAllBtn = document.getElementById('resetAllBtn');
+
+      const lateModal = document.getElementById('lateModal');
+      const cancelLateBtn = document.getElementById('cancelLateBtn');
+      const confirmLateBtn = document.getElementById('confirmLateBtn');
+
+      const installHelpBtn = document.getElementById('installHelpBtn');
+      const installModal = document.getElementById('installModal');
+      const closeInstallBtn = document.getElementById('closeInstallBtn');
+      const okInstallBtn = document.getElementById('okInstallBtn');
+
+      const toast = document.getElementById('toast');
+      let toastTimer = null;
+
+      function updateStorageBadge() {
+        if (storageCaps.localStorage || storageCaps.indexedDB || storageCaps.cookie) {
+          storageStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+          storageStatusText.textContent = 'Сохранение в браузере активно';
+        } else {
+          storageStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+          storageStatusText.textContent = 'Память браузера ограничена';
+        }
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        }
+        return Promise.resolve(fallbackCopy(text));
+      }
+
+      function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+        } catch (e) { /* ignore */ }
+        ta.remove();
+      }
+
+      function getEffectiveNow() {
+        const now = new Date();
+        if (state.dayOffset) {
+          now.setDate(now.getDate() + state.dayOffset);
+        }
+        return now;
+      }
+
+      function formatDateKey(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      function diffDays(dateStrA, dateStrB) {
+        const [ya, ma, da] = dateStrA.split('-').map(Number);
+        const [yb, mb, db] = dateStrB.split('-').map(Number);
+        const utcA = Date.UTC(ya, ma - 1, da);
+        const utcB = Date.UTC(yb, mb - 1, db);
+        return Math.round((utcB - utcA) / 86400000);
+      }
+
+      function pluralDays(n) {
+        const abs = Math.abs(n) % 100;
+        const n1 = abs % 10;
+        if (abs > 10 && abs < 20) return 'дней';
+        if (n1 > 1 && n1 < 5) return 'дня';
+        if (n1 === 1) return 'день';
+        return 'дней';
+      }
+
+      function getLevelName(streak) {
+        if (streak === 0) return 'Искра';
+        if (streak < 3) return 'Тёплый огонёк';
+        if (streak < 7) return 'Уверенный пламень';
+        if (streak < 14) return 'Пунктуальный факел';
+        if (streak < 30) return 'Неугасимый маяк';
+        return 'Легенда точности';
+      }
+
+      function checkMissedDays() {
+        const todayKey = formatDateKey(getEffectiveNow());
+        if (state.lastCheckInDate && state.streak > 0) {
+          const gap = diffDays(state.lastCheckInDate, todayKey);
+          if (gap > 1) {
+            state.streak = 0;
+            saveState();
+          }
+        }
+      }
+
+      function playChime(type) {
+        if (!state.soundEnabled) return;
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          const ctx = new AudioCtx();
+          const now = ctx.currentTime;
+
+          if (type === 'extend') {
+            [523.25, 659.25, 783.99].forEach((freq, idx) => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+              gain.gain.setValueAtTime(0.001, now + idx * 0.07);
+              gain.gain.exponentialRampToValueAtTime(0.12, now + idx * 0.07 + 0.02);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.28);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(now + idx * 0.07);
+              osc.stop(now + idx * 0.07 + 0.3);
+            });
+          } else {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(240, now);
+            osc.frequency.exponentialRampToValueAtTime(140, now + 0.25);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.3);
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function spawnSparks() {
+        const colors = ['#fbbf24', '#f97316', '#fb923c', '#fde047'];
+        for (let i = 0; i < 14; i++) {
+          const spark = document.createElement('span');
+          spark.className = 'spark-particle';
+          const angle = (Math.PI * 2 * i) / 14 + (Math.random() * 0.3 - 0.15);
+          const dist = 42 + Math.random() * 44;
+          spark.style.left = '50%';
+          spark.style.top = '55%';
+          spark.style.backgroundColor = colors[i % colors.length];
+          spark.style.setProperty('--tx', `${Math.cos(angle) * dist}px`);
+          spark.style.setProperty('--ty', `${Math.sin(angle) * dist - 16}px`);
+          flameWrapper.appendChild(spark);
+          setTimeout(() => spark.remove(), 820);
+        }
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          toast.classList.remove('opacity-100', 'translate-y-0');
+        }, 2400);
+      }
+
+      function renderWeekStrip(todayDate) {
+        const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        const jsDay = todayDate.getDay();
+        const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
+        const monday = new Date(todayDate);
+        monday.setDate(todayDate.getDate() + mondayOffset);
+        const todayKey = formatDateKey(todayDate);
+
+        weekStrip.innerHTML = '';
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + i);
+          const key = formatDateKey(d);
+          const status = state.history[key];
+          const isToday = key === todayKey;
+
+          const cell = document.createElement('div');
+          let badgeClass = 'bg-zinc-900/70 border-zinc-800/80 text-zinc-500';
+          let icon = '·';
+
+          if (status === 'ontime') {
+            badgeClass = 'bg-orange-500/20 border-orange-500/50 text-orange-300';
+            icon = '🔥';
+          } else if (status === 'late') {
+            badgeClass = 'bg-red-950/50 border-red-900/50 text-red-400';
+            icon = '✕';
+          } else if (isToday) {
+            badgeClass = 'bg-zinc-800/90 border-amber-400/50 text-amber-300';
+            icon = '○';
+          }
+
+          cell.className = `flex flex-col items-center justify-center py-2 rounded-xl border text-center transition ${badgeClass}`;
+          cell.innerHTML = `
+            <span class="text-[10px] font-medium opacity-80">${dayNames[i]}</span>
+            <span class="text-xs mt-1 leading-none">${icon}</span>
+          `;
+          weekStrip.appendChild(cell);
+        }
+      }
+
+      function render() {
+        checkMissedDays();
+        const now = getEffectiveNow();
+        const todayKey = formatDateKey(now);
+        const todayStatus = state.history[todayKey];
+        const checkedToday = todayStatus === 'ontime';
+        const lateToday = todayStatus === 'late';
+
+        goalBadge.textContent = `До ${state.goalTime}`;
+        goalTimeInput.value = state.goalTime;
+        todayDateLabel.textContent = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+
+        soundOnIcon.classList.toggle('hidden', !state.soundEnabled);
+        soundOffIcon.classList.toggle('hidden', state.soundEnabled);
+
+        streakCount.textContent = state.streak;
+        streakUnit.textContent = pluralDays(state.streak);
+        levelLabel.textContent = getLevelName(state.streak);
+        bestStreakLabel.textContent = `${state.bestStreak} ${pluralDays(state.bestStreak)}`;
+
+        flameSvg.classList.remove('flame-active', 'flame-dim', 'flame-extinguished');
+        if (lateToday) {
+          flameSvg.classList.add('flame-extinguished');
+          ambientGlow.className = 'pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-zinc-500/10 blur-3xl transition-all duration-700';
+          statusDot.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-red-500';
+          statusMessage.textContent = 'Сегодня огонёк потух. Завтра — новый старт!';
+        } else if (checkedToday) {
+          flameSvg.classList.add('flame-active');
+          ambientGlow.className = 'pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-orange-500/30 blur-3xl transition-all duration-700';
+          statusDot.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400';
+          statusMessage.textContent = 'Отлично! Огонёк продлён на сегодня ✨';
+        } else if (state.streak > 0) {
+          flameSvg.classList.add('flame-dim');
+          ambientGlow.className = 'pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-amber-500/15 blur-3xl transition-all duration-700';
+          statusDot.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse';
+          statusMessage.textContent = 'Отметьтесь сегодня, чтобы не потерять серию';
+        } else {
+          flameSvg.classList.add('flame-dim');
+          ambientGlow.className = 'pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-orange-500/10 blur-3xl transition-all duration-700';
+          statusDot.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-zinc-500';
+          statusMessage.textContent = 'Отметьтесь сегодня, чтобы зажечь огонёк';
+        }
+
+        if (checkedToday) {
+          extendBtn.disabled = true;
+          extendBtn.className = 'w-full py-3.5 px-4 rounded-2xl font-semibold text-sm text-emerald-300 bg-emerald-950/60 border border-emerald-700/40 cursor-default flex items-center justify-center gap-2';
+          extendBtnText.textContent = 'Сегодня уже продлён ✓';
+          lateBtn.classList.remove('hidden');
+        } else if (lateToday) {
+          extendBtn.disabled = true;
+          extendBtn.className = 'w-full py-3.5 px-4 rounded-2xl font-semibold text-sm text-zinc-500 bg-zinc-900 border border-zinc-800 cursor-not-allowed flex items-center justify-center gap-2';
+          extendBtnText.textContent = 'Доступно завтра';
+          lateBtn.classList.add('hidden');
+        } else {
+          extendBtn.disabled = false;
+          extendBtn.className = 'w-full py-3.5 px-4 rounded-2xl font-semibold text-sm text-zinc-950 bg-gradient-to-r from-amber-400 via-orange-400 to-orange-500 hover:brightness-105 active:scale-[0.98] transition shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2';
+          extendBtnText.textContent = state.streak > 0 ? 'Не опоздал(а) — продлить огонёк' : 'Не опоздал(а) — зажечь огонёк';
+          lateBtn.classList.remove('hidden');
+        }
+
+        renderWeekStrip(now);
+        updateStorageBadge();
+      }
+
+      // Event Listeners
+      extendBtn.addEventListener('click', () => {
+        const todayKey = formatDateKey(getEffectiveNow());
+        if (state.history[todayKey] === 'ontime' || state.history[todayKey] === 'late') return;
+
+        state.streak += 1;
+        if (state.streak > state.bestStreak) {
+          state.bestStreak = state.streak;
+        }
+        state.lastCheckInDate = todayKey;
+        state.history[todayKey] = 'ontime';
+        saveState();
+
+        playChime('extend');
+        spawnSparks();
+        render();
+        showToast(`Огонёк: ${state.streak} ${pluralDays(state.streak)}!`);
+      });
+
+      lateBtn.addEventListener('click', () => {
+        lateModal.classList.remove('hidden');
+        lateModal.classList.add('flex');
+      });
+
+      cancelLateBtn.addEventListener('click', () => {
+        lateModal.classList.add('hidden');
+        lateModal.classList.remove('flex');
+      });
+
+      confirmLateBtn.addEventListener('click', () => {
+        const todayKey = formatDateKey(getEffectiveNow());
+        state.streak = 0;
+        state.lastCheckInDate = null;
+        state.history[todayKey] = 'late';
+        saveState();
+
+        lateModal.classList.add('hidden');
+        lateModal.classList.remove('flex');
+        playChime('late');
+        render();
+        showToast('Серия сброшена. Завтра начнём заново!');
+      });
+
+      soundToggleBtn.addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        saveState();
+        render();
+        showToast(state.soundEnabled ? 'Звук включён' : 'Звук выключен');
+      });
+
+      function openSettings() {
+        settingsModal.classList.remove('hidden');
+        settingsModal.classList.add('flex');
+      }
+
+      function closeSettings() {
+        settingsModal.classList.add('hidden');
+        settingsModal.classList.remove('flex');
+      }
+
+      settingsBtn.addEventListener('click', openSettings);
+      storageStatusBadge.addEventListener('click', openSettings);
+      closeSettingsBtn.addEventListener('click', closeSettings);
+
+      saveSettingsBtn.addEventListener('click', () => {
+        if (goalTimeInput.value) {
+          state.goalTime = goalTimeInput.value;
+        }
+        saveState();
+        closeSettings();
+        render();
+        showToast('Настройки сохранены');
+      });
+
+      copyBackupBtn.addEventListener('click', () => {
+        try {
+          const code = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+          copyText(code);
+          showToast('Резервный код скопирован');
+        } catch (e) {
+          showToast('Не удалось создать код');
+        }
+      });
+
+      toggleRestoreBtn.addEventListener('click', () => {
+        restoreBox.classList.toggle('hidden');
+      });
+
+      applyRestoreBtn.addEventListener('click', () => {
+        const raw = restoreInput.value.trim();
+        if (!raw) return;
+        try {
+          const decoded = JSON.parse(decodeURIComponent(escape(atob(raw))));
+          state = normalizeState(decoded);
+          saveState();
+          restoreInput.value = '';
+          restoreBox.classList.add('hidden');
+          closeSettings();
+          render();
+          showToast('Прогресс восстановлен!');
+        } catch (e) {
+          showToast('Неверный формат кода');
+        }
+      });
+
+      simulateNextDayBtn.addEventListener('click', () => {
+        state.dayOffset += 1;
+        saveState();
+        closeSettings();
+        render();
+        showToast('Переключено на следующий день (тест)');
+      });
+
+      resetAllBtn.addEventListener('click', () => {
+        state = { ...defaultState, history: {} };
+        saveState();
+        closeSettings();
+        render();
+        showToast('Статистика сброшена');
+      });
+
+      installHelpBtn.addEventListener('click', () => {
+        installModal.classList.remove('hidden');
+        installModal.classList.add('flex');
+      });
+
+      function closeInstallModal() {
+        installModal.classList.add('hidden');
+        installModal.classList.remove('flex');
+      }
+
+      closeInstallBtn.addEventListener('click', closeInstallModal);
+      okInstallBtn.addEventListener('click', closeInstallModal);
+
+      [settingsModal, lateModal, installModal].forEach((modal) => {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+          }
+        });
+      });
+
+      render();
+
+      readIdb().then((idbState) => {
+        if (idbState && (idbState.updatedAt || 0) > (state.updatedAt || 0)) {
+          state = normalizeState(idbState);
+          render();
+        } else if (state.updatedAt > 0) {
+          writeIdb(state).then(() => updateStorageBadge());
+        } else {
+          updateStorageBadge();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
